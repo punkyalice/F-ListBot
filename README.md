@@ -109,12 +109,13 @@ persist across restarts; they add to (never replace or remove) the bootstrap lis
 | `!join <room>` | admin | anywhere | Joins a room, persists it for auto-rejoin after restart |
 | `!leave` | mod | in a room | Leaves the current room, removes it from auto-rejoin |
 | `!log on\|off` | mod | in a room | Toggles a chat transcript log for the current room |
+| `!log limit <Nd\|off>` | admin | anywhere | Sets how long room logs are kept globally, e.g. `!log limit 30d` (no argument shows the current setting) |
 | `!addadmin <character>` | admin | anywhere | Grants global admin rights |
 | `!addmod <character>` | admin | in a room | Grants moderator rights scoped to the current room |
 | `!deladmin <character>` | admin | anywhere | Revokes global admin rights (cannot remove BOOTSTRAP_ADMINS) |
 | `!delmod <character>` | admin | in a room | Revokes moderator rights for the current room (cannot remove BOOTSTRAP_MODS) |
-| `!settings [room]` | everyone | anywhere | Shows a room's active plugins and logging status. Room defaults to the current room; required as an argument via PM |
-| `!gdpr` | everyone | **PM only** | Shows every piece of data stored about you (admin/mod status, plugin data, chat log entries) - always your own character, never anyone else's |
+| `!settings [room]` | everyone | anywhere | Shows a room's active plugins, logging status, and the global log retention. Room defaults to the current room; required as an argument via PM |
+| `!gdpr` | everyone | **PM only** | Shows every piece of data stored about you (admin/mod status, plugin data, chat log entries, retention policy) - always your own character, never anyone else's |
 | `!help` / `!commands` | everyone | anywhere | Explains every command, filtered to what the asker can actually use (example plugin) |
 | `!whois <character>` | everyone | anywhere | Looks up a character's profile (example plugin) |
 
@@ -151,7 +152,10 @@ example (`!help`, `!commands`, `!whois`).
 - `data/bot.sqlite3` - admins, room moderators, auto-rejoin room list, per-plugin config,
   and plugin key/value storage. Gitignored; back it up if you care about persisted state
   beyond your `.env` bootstrap list.
-- `data/logs/rooms/<room>/<date>.log` - opt-in per-room chat transcripts (`!log on`).
+- `data/logs/rooms/<room>/<date>.log` - opt-in per-room chat transcripts (`!log on`), one
+  file per room per day. Kept indefinitely by default; set a retention window with
+  `!log limit 30d` (or any other number of days) to have older files deleted automatically
+  - checked once at startup and then once a day. `!log limit off` removes the limit again.
 
 ## Testing against F-Chat
 
