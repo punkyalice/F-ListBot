@@ -1,6 +1,7 @@
 import type { AdminStore } from "../../store/adminStore";
 import type { KvStore } from "../../store/kvStore";
 import type { RoomLogger } from "../../logging/roomLogger";
+import type { BotSettingsStore } from "../../store/botSettingsStore";
 import type { Messenger } from "../messenger";
 import type { CommandDefinition } from "../types";
 import { chunkText } from "../../util/textChunking";
@@ -15,7 +16,13 @@ const LOG_ENTRY_LIMIT = 2000;
  * command. PM-only (requiredPmContext) so a full data export can never be replied into a
  * public room, even accidentally.
  */
-export function createGdprCommand(adminStore: AdminStore, kvStore: KvStore, roomLogger: RoomLogger, messenger: Messenger): CommandDefinition {
+export function createGdprCommand(
+  adminStore: AdminStore,
+  kvStore: KvStore,
+  roomLogger: RoomLogger,
+  botSettingsStore: BotSettingsStore,
+  messenger: Messenger
+): CommandDefinition {
   return {
     name: "gdpr",
     level: "everyone",
@@ -42,10 +49,12 @@ export function createGdprCommand(adminStore: AdminStore, kvStore: KvStore, room
         }
       }
 
+      const retentionDays = botSettingsStore.getLogRetentionDays();
       const { entries: logEntries, truncated } = await roomLogger.findEntriesForCharacter(character, LOG_ENTRY_LIMIT);
       lines.push(
         `\nChat log entries (${logEntries.length}${truncated ? "+, internal limit reached - contact the operator for a complete export" : ""}):`
       );
+      lines.push(`Log retention policy: ${retentionDays === null ? "kept indefinitely (no automatic deletion)" : `entries older than ${retentionDays} day(s) are deleted automatically`}.`);
       if (logEntries.length === 0) {
         lines.push("(none)");
       } else {

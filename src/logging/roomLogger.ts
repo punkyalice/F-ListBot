@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream, mkdirSync, type WriteStream } from "fs";
-import { readdir } from "fs/promises";
+import { readdir, unlink } from "fs/promises";
 import { createInterface } from "readline";
 import path from "path";
 import { slugifyRoomForFilename } from "../protocol/roomCode";
@@ -115,6 +115,39 @@ export class RoomLogger {
     }
 
     return { entries, truncated: false };
+  }
+
+  /**
+   * Deletes room-log day-files older than `retentionDays` (measured from the file's date
+   * in its name, UTC). Backs the global `!log limit` retention policy. Safe to call
+   * regardless of whether any room is currently logging - only ever touches files that are
+   * already closed (the currently-open file for a room is always today's, which by
+   * definition is never older than any positive retention window).
+   */
+  async pruneOldLogs(retentionDays: number): Promise<{ deletedFiles: number }> {
+    const roomsDir = path.join(this.#dataDir, "logs", "rooms");
+    const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+    let deletedFiles = 0;
+
+    for (const roomSlug of await listDirSafe(roomsDir)) {
+      const roomDir = path.join(roomsDir, roomSlug);
+      const files = (await listDirSafe(roomDir)).filter((f) => f.endsWith(".log"));
+
+      for (const file of files) {
+        const dateStr = file.replace(/\.log$/, "");
+        const fileDate = Date.parse(`${dateStr}T00:00:00Z`);
+        if (Number.isNaN(fileDate) || fileDate >= cutoff) continue;
+
+        try {
+          await unlink(path.join(roomDir, file));
+          deletedFiles++;
+        } catch {
+          // Best-effort - a file that's already gone or briefly locked isn't worth failing the whole sweep over.
+        }
+      }
+    }
+
+    return { deletedFiles };
   }
 
   #streamFor(room: string): WriteStream {

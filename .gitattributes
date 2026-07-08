@@ -1,0 +1,11 @@
+# Normalize line endings to LF in the repository regardless of the committer's local git
+# config (Windows' core.autocrlf commonly defaults to true, converting on checkout/commit
+# and causing noisy whole-file diffs). The bot runs on Linux in production, so LF is the
+# canonical form; this makes checkouts consistent across platforms.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

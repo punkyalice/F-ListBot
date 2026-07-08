@@ -7,6 +7,7 @@ import { AdminStore } from "../store/adminStore";
 import { RoomStore } from "../store/roomStore";
 import { PluginConfigStore } from "../store/pluginConfigStore";
 import { KvStore } from "../store/kvStore";
+import { BotSettingsStore } from "../store/botSettingsStore";
 import { FChatConnection } from "../connection/FChatConnection";
 import { OutgoingQueue } from "../connection/outgoingQueue";
 import { Messenger } from "./messenger";
@@ -34,6 +35,9 @@ export const EXIT_CLEAN = 0;
 export const EXIT_RESTART = 75;
 export const EXIT_AUTH_FATAL = 78;
 
+// Once a day is plenty for a retention sweep measured in whole days - no need for finer granularity.
+const RETENTION_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
 type ShutdownMode = "restart" | "auth_fatal" | "clean";
 
 /**
@@ -49,6 +53,7 @@ export class Bot {
   #roomStore: RoomStore;
   #pluginConfigStore: PluginConfigStore;
   #kvStore: KvStore;
+  #botSettingsStore: BotSettingsStore;
   #connection: FChatConnection;
   #outgoingQueue: OutgoingQueue;
   #messenger: Messenger;
@@ -78,6 +83,7 @@ export class Bot {
     this.#roomStore = new RoomStore(this.#db);
     this.#pluginConfigStore = new PluginConfigStore(this.#db);
     this.#kvStore = new KvStore(this.#db);
+    this.#botSettingsStore = new BotSettingsStore(this.#db);
 
     this.#connection = new FChatConnection(
       {
@@ -113,6 +119,7 @@ export class Bot {
 
     this.#registerCoreCommands();
     this.#wireConnectionEvents();
+    this.#startRetentionSweep();
   }
 
   async start(): Promise<void> {
@@ -228,6 +235,22 @@ export class Bot {
     }
   }
 
+  /** Enforces the global `!log limit` retention window (if any) by deleting old room-log day-files, once at startup and then daily. Picks up changes to the limit on its next run without needing a restart. */
+  #startRetentionSweep(): void {
+    const run = async () => {
+      const retentionDays = this.#botSettingsStore.getLogRetentionDays();
+      if (retentionDays === null) return;
+      try {
+        const { deletedFiles } = await this.#roomLogger.pruneOldLogs(retentionDays);
+        if (deletedFiles > 0) this.#logger.info({ deletedFiles, retentionDays }, "Pruned old room log files");
+      } catch (err) {
+        this.#logger.warn({ err }, "Failed to prune old room log files");
+      }
+    };
+    void run();
+    setInterval(() => void run(), RETENTION_SWEEP_INTERVAL_MS);
+  }
+
   #applyVar(variable: string, value: number | string | string[]): void {
     if (typeof value !== "number") return;
     switch (variable) {
@@ -252,15 +275,15 @@ export class Bot {
   #registerCoreCommands(): void {
     this.#registry.registerCore(createJoinCommand(this.#connection, this.#outgoingQueue, this.#roomStore, this.#config.character));
     this.#registry.registerCore(createLeaveCommand(this.#connection, this.#outgoingQueue, this.#roomStore));
-    this.#registry.registerCore(createLogCommand(this.#roomLogger, this.#roomStore));
+    this.#registry.registerCore(createLogCommand(this.#roomLogger, this.#roomStore, this.#adminStore, this.#botSettingsStore));
     this.#registry.registerCore(createAddAdminCommand(this.#adminStore));
     this.#registry.registerCore(createAddModCommand(this.#adminStore));
     this.#registry.registerCore(createDelAdminCommand(this.#adminStore));
     this.#registry.registerCore(createDelModCommand(this.#adminStore));
     this.#registry.registerCore(createReloadCommand(this.#pluginManager));
     this.#registry.registerCore(createRestartCommand(() => void this.shutdown("restart")));
-    this.#registry.registerCore(createSettingsCommand(this.#pluginManager, this.#pluginConfigStore, this.#roomStore));
-    this.#registry.registerCore(createGdprCommand(this.#adminStore, this.#kvStore, this.#roomLogger, this.#messenger));
+    this.#registry.registerCore(createSettingsCommand(this.#pluginManager, this.#pluginConfigStore, this.#roomStore, this.#botSettingsStore));
+    this.#registry.registerCore(createGdprCommand(this.#adminStore, this.#kvStore, this.#roomLogger, this.#botSettingsStore, this.#messenger));
   }
 
   #makeApi(pluginId: string): BotAPI {
