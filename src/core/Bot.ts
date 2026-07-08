@@ -18,6 +18,7 @@ import { Permissions } from "./permissions";
 import { Dispatcher } from "./dispatcher";
 import { PluginManager } from "../plugins/PluginManager";
 import type { BotAPI } from "../plugins/types";
+import type { ServerEvent } from "../protocol/messages";
 import { createJoinCommand } from "./commands/join";
 import { createLeaveCommand } from "./commands/leave";
 import { createLogCommand } from "./commands/log";
@@ -297,6 +298,19 @@ export class Bot {
       getModeratedRooms: (character) => this.#adminStore.listRoomsModeratedBy(character).map((m) => m.room),
       listCoreCommands: () => this.#registry.listCore(),
       listCommands: () => this.#registry.list(),
+      getBotCharacter: () => this.#config.character,
+      onRoomEvent: (event, callback) => {
+        const listener = (evt: ServerEvent) => {
+          if (event === "join" && evt.code === "JCH" && evt.character?.identity) {
+            callback(evt.channel, evt.character.identity);
+          } else if (event === "leave" && evt.code === "LCH") {
+            callback(evt.channel, evt.character);
+          }
+        };
+        this.#connection.on("event", listener);
+        return () => this.#connection.off("event", listener);
+      },
+      kickFromRoom: (room, character) => this.#outgoingQueue.enqueueOther(() => this.#connection.send("CKU", { channel: room, character })),
       storage: {
         getOwn: (ctx, key) => this.#kvStore.get(pluginId, ctx.room ?? null, ctx.senderCharacter, key),
         setOwn: (ctx, key, value) => this.#kvStore.set(pluginId, ctx.room ?? null, ctx.senderCharacter, key, value),

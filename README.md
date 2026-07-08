@@ -144,8 +144,14 @@ appropriately:
 
 ## Plugins
 
-See `plugins/README.md` for how to write a plugin. The `plugins/help` plugin is a working
-example (`!help`, `!commands`, `!whois`).
+See `plugins/README.md` for how to write a plugin. Three working examples ship with the
+bot:
+- `plugins/help` - `!help`, `!commands`, `!whois`.
+- `plugins/dice` - `!dice <X>d<Y>`, a minimal single-command plugin.
+- `plugins/checkage` - `!checkage [minAge|off]`, kicks characters below a configured
+  minimum age (via their `Age`/`Apparent Age` profile tags) on room join, exempting bot
+  admins/mods. Requires the bot's character to be a channel op in the room for the kick to
+  actually work - see the caveats at the top of `plugins/checkage/plugin.ts`.
 
 ## Data & logs
 

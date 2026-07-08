@@ -10,8 +10,14 @@ plugins/
     plugin.ts   <- entry file, see below
 ```
 
-`plugins/help/plugin.ts` is a complete working example (`!help`, `!commands`, `!whois`) -
-copy it as a starting point.
+Three working examples to copy from, roughly in order of complexity:
+- `plugins/dice/plugin.ts` - a single simple command (`!dice <X>d<Y>`), the smallest
+  possible plugin. Start here if you just want to add one command.
+- `plugins/help/plugin.ts` - multiple commands (`!help`, `!commands`, `!whois`) and the
+  reference implementation for permission-aware output and `getUserInfo()`.
+- `plugins/checkage/plugin.ts` - a persisted global setting, reacting to room-join events,
+  and taking a moderation action. Start here if you need event hooks or config that
+  survives a restart.
 
 ## The Plugin interface
 
@@ -71,6 +77,9 @@ interface BotAPI {
   getModeratedRooms(character: string): string[];          // every room this character moderates - handy when there's no current room (a PM)
   listCoreCommands(): CommandDefinition[];                  // core commands only
   listCommands(): CommandDefinition[];                      // core + every loaded plugin's commands - what !help actually uses
+  getBotCharacter(): string;                                // the bot's own character name - use to ignore events about the bot itself
+  onRoomEvent(event: "join" | "leave", callback: (room: string, character: string) => void): () => void;
+  kickFromRoom(room: string, character: string): Promise<void>;
   storage: { getOwn, setOwn, get, set };
   log: { info, warn, error };
 }
@@ -131,6 +140,30 @@ related-kink-IDs per custom kink) - richer than `KIN`/`KID`, which has no rating
 kinks. Not currently used, since it would mean relying on the rate-limited HTTP call for
 data the websocket already provides for free - a reasonable future enhancement if
 per-custom-kink ratings become useful.
+
+### Room events and moderation actions
+
+`onRoomEvent("join" | "leave", callback)` subscribes to room membership changes across
+**every** room the bot is in - it's not filtered by the (future) per-room plugin-activation
+setting, and it fires for the bot's own joins/leaves too, so check
+`character === api.getBotCharacter()` if you need to ignore those. It returns an
+unsubscribe function - call it from `onUnload`, or `!reload` leaves a duplicate listener
+registered every time. `plugins/checkage/plugin.ts` is the reference implementation.
+
+`kickFromRoom(room, character)` sends `CKU`. This only works if F-List's own server
+considers the bot's character a channel op (or owner) of that room - a permission system
+entirely separate from this bot's admin/mod concept, and outside this bot's control. It
+resolves once the command has been sent, not once confirmed - the protocol has no reliable
+success/failure acknowledgement for `CKU`.
+
+### Persisted global (non-per-user) settings
+
+`storage.get`/`storage.set` always require an `owner` - for a setting that belongs to the
+*plugin*, not any particular character, use a sentinel string that can never be a real
+F-List character name (e.g. `"__yourplugin_config__"`) as the owner, consistently, and pass
+`room: null`. `plugins/checkage/plugin.ts`'s `getMinAge`/`setMinAge` are the reference
+implementation - note there's no `storage.delete`, so "unset" needs its own sentinel value
+(checkage uses an empty string) that your read logic treats as "not configured".
 
 ### Storage and user data isolation
 

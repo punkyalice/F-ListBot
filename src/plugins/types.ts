@@ -24,6 +24,27 @@ export interface BotAPI {
   listCoreCommands(): CommandDefinition[];
   /** Every registered command, core and plugin alike. */
   listCommands(): CommandDefinition[];
+  /** The bot's own character name - use this to ignore events about the bot itself (e.g. its own room joins). */
+  getBotCharacter(): string;
+  /**
+   * Subscribes to room membership changes across every room the bot is in (not filtered
+   * by a future per-room plugin-activation setting, if one is ever added - this fires for
+   * *every* join/leave the bot observes). Returns an unsubscribe function - call it from
+   * your plugin's `onUnload`, or `!reload` will leave a duplicate listener registered on
+   * every reload. Fires for the bot's own joins/leaves too - check against
+   * `getBotCharacter()` if you need to ignore those.
+   */
+  onRoomEvent(event: "join" | "leave", callback: (room: string, character: string) => void): () => void;
+  /**
+   * Removes a character from a room (sends CKU). Requires the *F-List server* to consider
+   * the bot's character a channel op (or owner) of that room - this is a separate
+   * permission system from this bot's own admin/mod concept, and entirely outside this
+   * bot's control. If the bot isn't a channel op there, the server will reject the kick;
+   * this resolves once the command has been sent, not once the server has confirmed it
+   * (the protocol has no reliable success/failure acknowledgement for CKU - check the
+   * room, or bot logs, to confirm it actually worked).
+   */
+  kickFromRoom(room: string, character: string): Promise<void>;
   storage: {
     getOwn(ctx: CommandContext, key: string): string | null;
     setOwn(ctx: CommandContext, key: string, value: string): void;
