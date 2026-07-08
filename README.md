@@ -190,6 +190,8 @@ own. What's handled in code, and what's on you as the operator:
   the requirement that collected data (chat logs) be publicly disclosed, not gathered
   silently. `!gdpr` gives any user a self-service view of everything stored about their own
   character.
+- Room-log retention is enforced, not just documented: `!log limit <Nd>` sets a global
+  cutoff and a daily sweep actually deletes old log files - see "Data & logs" above.
 
 **Your responsibility as the operator (not enforceable in code):**
 - **Official channels**: file a Helpdesk ticket and get a positive response from site staff
@@ -207,9 +209,10 @@ own. What's handled in code, and what's on you as the operator:
 - **Privacy policy**: since this bot logs messages and stores character-linked data
   (`!log`, `kv_store`), F-List's privacy rules require that this collection be *publicly
   disclosed* and that the bot have its own privacy policy (what's collected, how it's used,
-  how long it's retained) - this can live on the bot character's profile page. The `!gdpr`
-  and `!settings` commands help satisfy the "let users see/access their own data" part, but
-  the written policy itself is on you.
+  how long it's retained) - this can live on the bot character's profile page. `!gdpr` and
+  `!settings` cover the "let users see their own data" part, and `!log limit` gives you an
+  actual retention period to state and have the bot enforce - but writing the policy text
+  itself is on you.
 - Credentials (`FLIST_ACCOUNT`/`FLIST_PASSWORD`) are only ever used locally to fetch a
   ticket and are never transmitted anywhere else - satisfies the "must not store/transmit
   user credentials" rule, which in this codebase is specifically about the *bot's own*
